@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>La plante et le score</title>
+<style>
+:root{--bg:#f4f8f1;--fg:#1f2d1f;--card:#fff;--line:#cfdcc8;--green:#3f9b45;--dead:#8a7a5a;--pot:#b8643a;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#121a12;--fg:#e6f0e2;--card:#1c261c;--line:#2f3f2f;--green:#5fc066;--dead:#9a8a6a}}
+:root[data-theme="dark"]{--bg:#121a12;--fg:#e6f0e2;--card:#1c261c;--line:#2f3f2f;--green:#5fc066;--dead:#9a8a6a}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:system-ui,-apple-system,sans-serif;display:flex;justify-content:center}
+main{width:100%;max-width:420px;padding:20px;box-sizing:border-box}
+h1{font-size:1.3rem;text-align:center;margin:0 0 4px}
+p.sub{text-align:center;margin:0 0 16px;opacity:.7;font-size:.9rem}
+.scene{background:var(--card);border:1px solid var(--line);border-radius:16px;height:340px;position:relative;overflow:hidden}
+.pot{position:absolute;bottom:0;left:50%;transform:translateX(-50%);width:90px;height:50px;background:var(--pot);border-radius:4px 4px 14px 14px}
+.plant{position:absolute;bottom:50px;left:50%;width:0;height:0;transform-origin:bottom center;transition:transform 1s}
+.stem{position:absolute;bottom:0;left:-4px;width:8px;background:var(--green);border-radius:4px;transition:height .6s,background .6s}
+.leaf{position:absolute;width:34px;height:18px;background:var(--green);border-radius:0 100% 0 100%;transition:background .6s,transform .8s}
+.leaf.l{left:-34px;transform:scaleX(-1)}
+.leaf.r{left:4px}
+.plant.dead .stem,.plant.dead .leaf{background:var(--dead)}
+.plant.dead{transform:rotate(38deg)}
+.plant.dead .leaf{transform:translateY(12px) rotate(30deg)}
+.plant.dead .leaf.l{transform:scaleX(-1) translateY(12px) rotate(30deg)}
+.status{text-align:center;margin:14px 0;min-height:3em;font-size:.95rem}
+.row{display:flex;gap:8px}
+input{flex:1;min-width:0;padding:12px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--fg);font-size:1rem}
+button{padding:12px 16px;border:0;border-radius:10px;background:var(--green);color:#fff;font-size:1rem;cursor:pointer}
+button.ghost{background:transparent;color:var(--fg);border:1px solid var(--line);margin-top:8px;width:100%}
+.flower{position:absolute;left:-18px;width:36px;height:36px;border-radius:50%;background:radial-gradient(circle,#ffd23f 28%,#ff6f91 30%);opacity:0;transform:scale(0);transition:all .8s}
+.plant.win .flower{opacity:1;transform:scale(1)}
+.goal{text-align:center;font-weight:600;margin-bottom:10px}
+.bar{height:8px;background:var(--line);border-radius:4px;margin-top:6px;overflow:hidden}
+.bar i{display:block;height:100%;width:0;background:var(--green);transition:width .5s}
+.hist{margin-top:12px;font-size:.85rem;opacity:.7;text-align:center;word-break:break-word}
+</style>
+</head>
+<body>
+<main>
+  <h1>🌱 La plante du numérique</h1>
+  <p class="sub">Score qui baisse = elle grandit. Deux hausses d'affilée = elle meurt. Atteins 24 pour la faire fleurir !</p>
+  <div class="goal"><span id="goalTxt"></span><div class="bar"><i id="bar"></i></div></div>
+
+  <div class="scene"><div class="plant" id="plant"><div class="stem" id="stem"></div><div class="flower" id="flower"></div></div><div class="pot"></div></div>
+  <div class="status" id="status"></div>
+
+  <div class="row">
+    <input id="score" type="number" placeholder="Nouveau score" inputmode="numeric">
+    <button id="send">Envoyer</button>
+  </div>
+  <button class="ghost" id="reset">Recommencer</button>
+  <div class="hist" id="hist"></div>
+</main>
+
+<script>
+const OBJECTIF = 24;
+let depart = 100, dernier, taille, hausses, vivante, gagne, historique;
+const $ = id => document.getElementById(id);
+
+function init() {
+  const saisie = prompt("Score de départ (point X, supérieur à " + OBJECTIF + ") ?", depart);
+  depart = saisie !== null && saisie.trim() !== "" && !isNaN(saisie) ? Number(saisie) : depart;
+  if (depart <= OBJECTIF) depart = 100;
+  dernier = depart; taille = 1; hausses = 0; vivante = true; gagne = false; historique = [depart];
+  $("plant").className = "plant";
+  $("plant").querySelectorAll(".leaf").forEach(l => l.remove());
+  $("score").value = "";
+  dessiner(`Score de départ : ${depart}. Objectif : ${OBJECTIF}.`);
+}
+
+function dessiner(message) {
+  $("stem").style.height = (30 + taille * 18) + "px";
+  $("flower").style.bottom = (30 + taille * 18 - 14) + "px";
+  const total = depart - OBJECTIF;
+  const pct = Math.max(0, Math.min(100, (depart - dernier) / total * 100));
+  $("bar").style.width = pct + "%";
+  $("goalTxt").textContent = "🎯 Objectif : " + OBJECTIF + " — score actuel : " + dernier;
+  $("status").textContent = message;
+  $("hist").textContent = "Scores : " + historique.join(" → ");
+}
+
+function ajouterFeuille() {
+  const f = document.createElement("div");
+  f.className = "leaf " + (taille % 2 ? "r" : "l");
+  f.style.bottom = (taille * 18 + 4) + "px";
+  $("plant").appendChild(f);
+}
+
+function envoyer() {
+  const v = $("score").value;
+  if (!vivante || gagne || v === "" || isNaN(v)) return;
+  const score = Number(v);
+  let msg = "Score identique : rien ne change.";
+
+  if (score < dernier) {
+    taille++; hausses = 0; ajouterFeuille();
+    msg = "📉 Le score baisse : la plante grandit !";
+  } else if (score > dernier) {
+    hausses++;
+    msg = "📈 Le score monte (" + hausses + "/2)... la plante s'inquiète.";
+    if (hausses >= 2) {
+      vivante = false;
+      $("plant").classList.add("dead");
+      msg = "💀 Deux hausses de suite : la plante est morte.";
+    }
+  }
+  dernier = score; historique.push(score);
+  if (vivante && score <= OBJECTIF) {
+    gagne = true;
+    $("plant").classList.add("win");
+    msg = "🌸 Objectif " + OBJECTIF + " atteint : la plante fleurit, bravo !";
+  }
+  $("score").value = "";
+  dessiner(msg);
+}
+
+$("send").onclick = envoyer;
+$("score").onkeydown = e => { if (e.key === "Enter") envoyer(); };
+$("reset").onclick = init;
+init();
+</script>
+</body>
+</html>
+
+
